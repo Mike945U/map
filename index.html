@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>校內處室查詢</title>
+<style>
+body{font-family:system-ui,"Noto Sans TC",sans-serif;background:#f5f6f8;margin:0;color:#202124}
+main{max-width:900px;margin:30px auto;padding:20px}
+h1{margin-bottom:18px}.search{display:flex;gap:8px}
+input{flex:1;padding:13px 15px;border:1px solid #bbb;border-radius:10px;font-size:16px}
+button{padding:0 20px;border:0;border-radius:10px;background:#1a73e8;color:white;font-size:16px}
+#status{margin:14px 0;color:#666}.result{background:white;border-radius:14px;padding:18px;margin:12px 0}
+.meta{color:#555;margin-top:4px}.map{width:100%;margin-top:16px;border-radius:10px;border:1px solid #ddd}
+.choice{cursor:pointer}.choice:hover{outline:2px solid #1a73e8}
+section{margin-top:28px}.hidden{display:none}
+@media(max-width:600px){main{margin:0;padding:15px}.search{flex-direction:column}button{padding:12px}}
+</style>
+</head>
+<body>
+<main>
+<h1>處室查詢</h1>
+<div class="search">
+<input id="q" placeholder="輸入處室名稱或空間編號，例如：主計室、AD203">
+<button id="searchBtn">搜尋</button>
+</div>
+<div id="status">請輸入處室名稱或空間編號。</div>
+<div id="results"></div>
+
+<section id="campusSection" class="hidden">
+<h2>校園位置</h2>
+<img id="campusMap" class="map" src="maps/campus.jpg" alt="學校校園配置圖"
+ onerror="this.style.display='none';document.getElementById('campusNote').style.display='block'">
+<p id="campusNote" style="display:none;color:#666">尚未放入 maps/campus.jpg。之後把校園配置圖命名為 campus.jpg 放進 maps 資料夾即可。</p>
+</section>
+</main>
+<script>
+let offices=[];
+const q=document.getElementById('q'), results=document.getElementById('results'), status=document.getElementById('status');
+
+function parseCSV(text){
+ const lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/);
+ const headers=lines.shift().split(',');
+ return lines.map(line=>{
+   const vals=[]; let cur='', quoted=false;
+   for(let i=0;i<line.length;i++){const c=line[i];
+     if(c=='"'){if(quoted && line[i+1]=='"'){cur+='"';i++;}else quoted=!quoted;}
+     else if(c==','&&!quoted){vals.push(cur);cur='';} else cur+=c;
+   } vals.push(cur);
+   return Object.fromEntries(headers.map((h,i)=>[h,vals[i]||'']));
+ });
+}
+fetch('offices.csv').then(r=>r.text()).then(t=>{offices=parseCSV(t);status.textContent='資料載入完成，請輸入處室名稱或空間編號。'})
+.catch(()=>status.textContent='無法讀取 offices.csv。請透過 GitHub Pages 或本機伺服器開啟網站。');
+
+function showOffice(o){
+ results.innerHTML=`<div class="result"><h2>${esc(o.處室名稱)}</h2>
+ <div class="meta">${esc(o.空間編號)}｜${esc(o.建築物)}｜${esc(o.樓層)}</div>
+ <img class="map" src="${esc(o.樓層圖片)}" alt="${esc(o.建築物)} ${esc(o.樓層)} 平面圖"></div>`;
+ status.textContent='搜尋結果';
+ document.getElementById('campusSection').classList.remove('hidden');
+}
+function search(){
+ const term=q.value.trim().toLowerCase(); results.innerHTML='';
+ if(!term){status.textContent='請輸入處室名稱或空間編號。';return;}
+ const found=offices.filter(o=>o.處室名稱.toLowerCase().includes(term)||o.空間編號.toLowerCase().includes(term)||o.建築物.toLowerCase().includes(term));
+ if(!found.length){status.textContent='找不到符合的處室。';document.getElementById('campusSection').classList.add('hidden');return;}
+ if(found.length===1){showOffice(found[0]);return;}
+ status.textContent=`找到 ${found.length} 筆，請選擇：`;
+ found.forEach(o=>{const d=document.createElement('div');d.className='result choice';
+ d.innerHTML=`<strong>${esc(o.處室名稱)}</strong><div class="meta">${esc(o.空間編號)}｜${esc(o.建築物)}｜${esc(o.樓層)}</div>`;
+ d.addEventListener('click',()=>showOffice(o));results.appendChild(d);});
+}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+document.getElementById('searchBtn').addEventListener('click',search);
+q.addEventListener('keydown',e=>{if(e.key==='Enter')search();});
+</script>
+</body>
+</html>
